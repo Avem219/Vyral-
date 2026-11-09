@@ -1,0 +1,52 @@
+name: Unzip and Commit Files
+
+on:
+  push:
+    paths:
+      - '**/*.zip' # Triggers when any .zip file is pushed
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+
+jobs:
+  unzip-and-commit:
+    runs-on: ubuntu-latest
+    
+    # Required permissions to write/commit back to the repository
+    permissions:
+      contents: write
+
+    steps:
+      # 1. Check out the repository code
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. Find and extract the ZIP file(s)
+      # This script uses standard Ubuntu shell tools to avoid external dependencies
+      - name: Unzip Archive
+        run: |
+          echo "Looking for ZIP files..."
+          # Replace 'archive.zip' with your specific file path, or leave this loop to handle any zip
+          for f in $(find . -name "*.zip"); do
+            echo "Extracting $f..."
+            # -o overwrites existing files, -d specifies output directory (current directory here)
+            unzip -o "$f" -d .
+            
+            # Optional: Delete the original zip file after extraction so it isn't kept redundant
+            # rm "$f" 
+          done
+
+      # 3. Configure Git, stage the unzipped files, and commit them back
+      - name: Commit and Push Extracted Files
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Stage all changes (newly unzipped files)
+          git add .
+          
+          # Check if there are actually changes to commit so the workflow doesn't fail
+          if git diff-index --quiet HEAD; then
+            echo "No new files or changes detected. Skipping commit."
+          else
+            git commit -m "chore: auto-unzip archive files [skip ci]"
+            git push
+          fi
